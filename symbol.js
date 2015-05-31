@@ -32,27 +32,64 @@ Symbol.Array = function() {
 	this.data = initNestedArray(this.shape,this.buffer);
 }
 
+Symbol.Vector = function(arr) {
+	var result = new Symbol.Array(arr.length);
+	for (var i=0;i<arr.length;i++) {
+		result.data[i] = arr[i];
+	}
+	return result;
+}
 
+Symbol.createFunction = function(expr) {
+	var nodeIndex = {},
+		nodeOrder = [],
+		nodeDeps  = [];
+	function traverse(node) {
+		var deps = [];
+		if (node.inputs) {
+			for (var i=0;i < node.inputs.length; i++) {
+				if (!(node.inputs[i].name in nodeIndex)) {
+					traverse(node.inputs[i]);
+				}
+				deps.push(nodeIndex[node.inputs[i].name]);
+			}
+		}
+		nodeIndex[node.name] = nodeOrder.length;
+		nodeOrder.push(node);
+		nodeDeps.push(deps);
+	}
+	traverse(expr);
+
+	var memoize = new Array(nodeOrder.length);
+	return function(inputs) {
+		for (var i=0;i < memoize.length; i++) {
+			var currNode = nodeOrder[i];
+			if (currNode.fun) {
+				var deps = nodeDeps[i];
+				memoize[i] = currNode.fun.apply(
+						null,
+						deps.map(function(j) { return memoize[j] })
+					);
+			} else {
+				memoize[i] = inputs[currNode.name];
+			}
+		}
+		return memoize[memoize.length-1];
+	}
+}
 
 function Sym(name) {
 	this.name = name;
 }
-
-function SymInput(name) {
-	this.name = name;
-	this.evaluate = function(inputs) {
-		return inputs[this.name];
-	}
+Sym.prototype = {
+	toString: function() { return this.name }
 }
-SymInput.prototype = new Sym();
-SymInput.prototype.constructor = SymInput;
 
 function SymParam(name,value) {
 	this.name = name;
 	this.value = value;
-	this.evaluate = function() {
-		return this.value;
-	}
+	this.inputs = [];
+	this.fun = function() { return this.value; }
 }
 SymParam.prototype = new Sym();
 SymParam.prototype.constructor = SymParam;
@@ -67,13 +104,7 @@ Symbol.Functions.Builder = function(name,fun) {
 			this.inputs.map(
 				function(arg) { return arg.name; }
 			).join(",") + ")";
-
-		this.evaluate = function(inputs) {
-			var values = this.inputs.map(function(i) { 
-				return i.evaluate(inputs);
-			});
-			return fun.apply(null,values);
-		}
+		this.fun = fun;
 	}
 	SymExpr.prototype = new Sym();
 	return function() {
@@ -168,19 +199,24 @@ Symbol.Functions.single.forEach(function(desc) {
 
 
 
+var x = new Sym("x");
+var y = new Sym("y");
+var z = new Sym("z");
 
-var weights = new Symbol.Array(2,2);
-weights.data[0][0] = weights.data[1][1] = 0;
-weights.data[1][0] = weights.data[0][1] = 1;
 
-var x = new SymInput("x");
-var W = new SymParam("W",weights);
+var xy = x.mul(y);
+var zxy = z.mul(xy);
 
-input = new Symbol.Array(2);
-input.data[0] = 1;
-input.data[1] = 2;
-var expr = Symbol.sigmoid(x.dot(W).sub(x));
-console.log(expr);
-console.log(W.evaluate());
-console.log(expr.evaluate({ "x": input }))
-//console.log({ W.add(W): 1})
+
+var fun = Symbol.createFunction(xy.add(zxy)); // xy + zxy
+console.log(fun({
+	'x': Symbol.Vector([2]),
+	'y': Symbol.Vector([3]),
+	'z': Symbol.Vector([4]), // 6 + 24
+}))
+
+console.log(fun({
+	'x': Symbol.Vector([2]),
+	'y': Symbol.Vector([3]),
+	'z': Symbol.Vector([6]), // 6 + 36
+}))
