@@ -1,10 +1,19 @@
-PARAM_BYTES=4;
+var PARAM_BYTES = 4;
 
 function construct(constructor, args) {
 	function F() { return constructor.apply(this, args); }
 	F.prototype = constructor.prototype;
 	return new F();
 }
+
+function Sym(name) {
+	this.name = name;
+}
+Sym.prototype = {
+	toString: function() { return this.name }
+}
+
+var ONE = new Sym("1");
 
 var Symbol = function() {};
 Symbol.Array = function() {
@@ -40,7 +49,7 @@ Symbol.Vector = function(arr) {
 	return result;
 }
 
-Symbol.createFunction = function(expr) {
+function topologicalSort(expr) {
 	var nodeIndex = {},
 		nodeOrder = [],
 		nodeDeps  = [];
@@ -49,6 +58,7 @@ Symbol.createFunction = function(expr) {
 		if (node.inputs) {
 			for (var i=0;i < node.inputs.length; i++) {
 				if (!(node.inputs[i].name in nodeIndex)) {
+					//console.log(node.name,"->",node.inputs[i].name);
 					traverse(node.inputs[i]);
 				}
 				deps.push(nodeIndex[node.inputs[i].name]);
@@ -59,17 +69,50 @@ Symbol.createFunction = function(expr) {
 		nodeDeps.push(deps);
 	}
 	traverse(expr);
+	return {
+		index: nodeIndex,
+		order: nodeOrder,
+		dependencies: nodeDeps
+	}
+}
 
+Symbol.gradient = function(expr,wrts) {
+	var nodes = topologicalSort(expr);
+	var nodeIndex = nodes.index,
+		nodeOrder = nodes.order,
+		nodeDeps  = nodes.dependencies;
+
+	var deltas = new Array(nodeOrder.length);
+	deltas[deltas.length-1] = ONE;
+	for (var i=deltas.length-1;i >= 0;i--) {
+		if (nodeOrder[i].grad) {
+			var depDeltas = nodeOrder[i].grad(deltas[i]);
+			var depIdxs = nodeDeps[i];
+			for (var j = 0;j < depDeltas.length; j++) {
+				var idx   = depIdxs[j],
+					delta = depDeltas[j];
+				deltas[idx] = deltas[idx] ? deltas[idx].add(delta) : delta;
+			}
+		}
+	}
+	return wrts.map(function(p) {
+		return deltas[nodeIndex[p]];
+	});
+}
+
+Symbol.createFunction = function(expr) {
+	var nodes = topologicalSort(expr);
+	var nodeIndex = nodes.index,
+		nodeOrder = nodes.order,
+		nodeDeps  = nodes.dependencies;
 	var memoize = new Array(nodeOrder.length);
+	var lambdaMemoized = function(j) { return memoize[j] };
 	return function(inputs) {
 		for (var i=0;i < memoize.length; i++) {
 			var currNode = nodeOrder[i];
 			if (currNode.fun) {
 				var deps = nodeDeps[i];
-				memoize[i] = currNode.fun.apply(
-						null,
-						deps.map(function(j) { return memoize[j] })
-					);
+				memoize[i] = currNode.fun.apply(null,deps.map(lambdaMemoized));
 			} else {
 				memoize[i] = inputs[currNode.name];
 			}
@@ -78,24 +121,18 @@ Symbol.createFunction = function(expr) {
 	}
 }
 
-function Sym(name) {
-	this.name = name;
-}
-Sym.prototype = {
-	toString: function() { return this.name }
-}
+
 
 function SymParam(name,value) {
 	this.name = name;
 	this.value = value;
-	this.inputs = [];
 	this.fun = function() { return this.value; }
 }
 SymParam.prototype = new Sym();
 SymParam.prototype.constructor = SymParam;
 
 Symbol.Functions = function() {};
-Symbol.Functions.Builder = function(name,fun) {
+Symbol.Functions.Builder = function(name,fun,grad) {
 	var functionName = name;
 	var fun = fun;
 	function SymExpr() {
@@ -105,6 +142,9 @@ Symbol.Functions.Builder = function(name,fun) {
 				function(arg) { return arg.name; }
 			).join(",") + ")";
 		this.fun = fun;
+		if (grad) {
+			this.grad = grad;
+		}
 	}
 	SymExpr.prototype = new Sym();
 	return function() {
@@ -145,8 +185,8 @@ Symbol.Functions.pairwise = [
 	{
 		name: "add",
 		op: Symbol.Functions.ElementWiseOpBuilder(function(x,y) {return x + y}),
-		grad: function(X,Y,output,error) {
-			return [ error, error ];
+		grad: function(error) {
+			return [error,error];
 		}
 	},
 	{
@@ -156,7 +196,9 @@ Symbol.Functions.pairwise = [
 	{
 		name: "mul",
 		op: Symbol.Functions.ElementWiseOpBuilder(function(x,y) {return x * y}),
-		grad: function(X,Y,output,error) {
+		grad: function(error) {
+			var X = this.inputs[0];
+			var Y = this.inputs[1];
 			return [ Y.mul(error), X.mul(error) ];
 		}
 	},
@@ -187,13 +229,13 @@ Symbol.Functions.single = [
 ]
 
 Symbol.Functions.pairwise.forEach(function(desc) {
-	var symfun = Symbol.Functions.Builder(desc.name,desc.op,false)
+	var symfun = Symbol.Functions.Builder(desc.name,desc.op,desc.grad)
 	Symbol[desc.name] = symfun;
 	Sym.prototype[desc.name] = function(y) { return symfun(this,y) };
 });
 
 Symbol.Functions.single.forEach(function(desc) {
-	var symfun = Symbol.Functions.Builder(desc.name,desc.op,false)
+	var symfun = Symbol.Functions.Builder(desc.name,desc.op,desc.grad)
 	Symbol[desc.name] = symfun;
 });
 
@@ -201,14 +243,16 @@ Symbol.Functions.single.forEach(function(desc) {
 
 var x = new Sym("x");
 var y = new Sym("y");
-var z = new Sym("z");
+var w = new SymParam("w",Symbol.Vector([2]));
 
 
-var xy = x.mul(y);
-var zxy = z.mul(xy);
+var wy = w.mul(y);
+var wx = w.mul(x);
+var expr = wy.add(wx);
 
-
-var fun = Symbol.createFunction(xy.add(zxy)); // xy + zxy
+console.log(Symbol.gradient(expr,[w]));
+/*
+var fun = Symbol.createFunction(); // xy + zxy
 console.log(fun({
 	'x': Symbol.Vector([2]),
 	'y': Symbol.Vector([3]),
@@ -220,3 +264,4 @@ console.log(fun({
 	'y': Symbol.Vector([3]),
 	'z': Symbol.Vector([6]), // 6 + 36
 }))
+*/
