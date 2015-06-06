@@ -49,16 +49,16 @@ Symbol.Vector = function(arr) {
 	return result;
 }
 
-function topologicalSort(expr) {
+function topologicalSort(exprs) {
 	var nodeIndex = {},
 		nodeOrder = [],
 		nodeDeps  = [];
+
 	function traverse(node) {
 		var deps = [];
 		if (node.inputs) {
 			for (var i=0;i < node.inputs.length; i++) {
 				if (!(node.inputs[i].name in nodeIndex)) {
-					//console.log(node.name,"->",node.inputs[i].name);
 					traverse(node.inputs[i]);
 				}
 				deps.push(nodeIndex[node.inputs[i].name]);
@@ -68,11 +68,15 @@ function topologicalSort(expr) {
 		nodeOrder.push(node);
 		nodeDeps.push(deps);
 	}
-	traverse(expr);
+
+	for (var i=0;i < exprs.length;i++) {
+		traverse(exprs[i]);
+	}
+
 	return {
 		index: nodeIndex,
 		order: nodeOrder,
-		dependencies: nodeDeps
+		dependencies: nodeDeps,
 	}
 }
 
@@ -100,24 +104,36 @@ Symbol.gradient = function(expr,wrts) {
 	});
 }
 
-Symbol.createFunction = function(expr) {
-	var nodes = topologicalSort(expr);
+Symbol.createFunction = function(exprs) {
+	var nodes = topologicalSort(exprs);
 	var nodeIndex = nodes.index,
 		nodeOrder = nodes.order,
 		nodeDeps  = nodes.dependencies;
 	var memoize = new Array(nodeOrder.length);
 	var lambdaMemoized = function(j) { return memoize[j] };
+	console.log(nodeIndex);
 	return function(inputs) {
+		var resultMap = {};
+		var resultPtr = 0;
 		for (var i=0;i < memoize.length; i++) {
 			var currNode = nodeOrder[i];
 			if (currNode.fun) {
 				var deps = nodeDeps[i];
-				memoize[i] = currNode.fun.apply(null,deps.map(lambdaMemoized));
+				//console.log("nodename:",currNode.name);
+				//console.log("function:",currNode.fun);
+				//console.log("depidx:",deps);
+				//console.log("eval deps:",deps.map(lambdaMemoized));
+				memoize[i] = currNode.fun.apply(currNode,deps.map(lambdaMemoized));
 			} else {
 				memoize[i] = inputs[currNode.name];
 			}
+			//console.log(memoize);
+			if (currNode.name == exprs[resultPtr].name) {
+				resultMap[currNode.name] = memoize[i];
+				resultPtr++;
+			}
 		}
-		return memoize[memoize.length-1];
+		return resultMap;
 	}
 }
 
@@ -244,24 +260,23 @@ Symbol.Functions.single.forEach(function(desc) {
 var x = new Sym("x");
 var y = new Sym("y");
 var w = new SymParam("w",Symbol.Vector([2]));
-
+var z = new SymParam("z",Symbol.Vector([5]));
 
 var wy = w.mul(y);
 var wx = w.mul(x);
-var expr = wy.add(wx);
-
-console.log(Symbol.gradient(expr,[w]));
-/*
-var fun = Symbol.createFunction(); // xy + zxy
+var zy = z.mul(y);
+var zx = z.mul(x);
+var expr1 = wy.add(wx);
+var expr2 = zy.add(zx);
+//console.log(Symbol.gradient(expr,[w]));
+var fun = Symbol.createFunction([expr1,expr2]);
 console.log(fun({
 	'x': Symbol.Vector([2]),
 	'y': Symbol.Vector([3]),
-	'z': Symbol.Vector([4]), // 6 + 24
-}))
+}));
 
 console.log(fun({
-	'x': Symbol.Vector([2]),
+	'x': Symbol.Vector([5]),
 	'y': Symbol.Vector([3]),
-	'z': Symbol.Vector([6]), // 6 + 36
-}))
-*/
+}));
+
