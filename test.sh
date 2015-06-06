@@ -1,7 +1,12 @@
 #!/bin/bash
-closure -O SIMPLE_OPTIMIZATIONS \
-	--js _symbol.js \
-	--js sym.js \
-	--js function.js \
-	--js array.js \
-	--js main.js | node
+(
+	echo "function Symbol() {}"
+	echo "(function(global) {"
+	cat \
+		_symbol.js \
+		sym.js \
+		function.js \
+		array.js
+	echo "})(Symbol)"
+	cat main.js
+) | node
