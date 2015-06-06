@@ -3,5 +3,4 @@ closure -O SIMPLE_OPTIMIZATIONS \
 	--js _symbol.js \
 	--js sym.js \
 	--js function.js \
-	--js array.js \
-	--js main.js | node
+	--js array.js > symbol.js

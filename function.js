@@ -1,4 +1,4 @@
-(function(global) {
+(function(global,base) {
 
 	var construct = function(constructor, args) {
 		function F() { return constructor.apply(this, args); }
@@ -34,7 +34,7 @@
 				this.grad = grad;
 			}
 		}
-		SymExpr.prototype = new Sym();
+		SymExpr.prototype = new base();
 		return function() {
 			var args = arguments;
 			return construct(SymExpr,args);
@@ -106,13 +106,13 @@
 	pairwise.forEach(function(desc) {
 		var symfun = symbolicFunctionBuilder(desc.name,desc.op,desc.grad)
 		global[desc.name] = symfun;
-		Sym.prototype[desc.name] = function(y) { return symfun(this,y) };
+		base.prototype[desc.name] = function(y) { return symfun(this,y) };
 	});
 
 	single.forEach(function(desc) {
 		var symfun = symbolicFunctionBuilder(desc.name,desc.op,desc.grad)
 		global[desc.name] = symfun;
 	});
-})(Symbol);
+})(Symbol,Symbol.Var);
 
 

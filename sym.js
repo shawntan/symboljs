@@ -1,18 +1,23 @@
-function Sym(name) {
-	this.name = name;
-}
-Sym.prototype = {
-	toString: function() { return this.name }
-}
-Sym.ONE = new Sym("1");
+(function(global) {
 
+	var Var = function(name) {
+		this.name = name;
+	}
+	Var.prototype = {
+		toString: function() { return this.name }
+	}
+	Var.ONE = new Var("1");
 
-function SymParam(name,value) {
-	this.name = name;
-	this.value = value;
-	this.fun = function() { return this.value; }
-}
-SymParam.prototype = new Sym();
-SymParam.prototype.constructor = SymParam;
+	var Param = function(name,value) {
+		this.name = name;
+		this.value = value;
+		this.fun = function() { return this.value; }
+	}
+	Param.prototype = new Var();
+	Param.prototype.constructor = Param;
+
+	global.Var = Var;
+	global.Param = Param;
+})(Symbol);
 
 
