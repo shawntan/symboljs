@@ -1,5 +1,4 @@
 #!/bin/bash
-echo "function Symbol() {}; (function(global){%output%})(Symbol)"
 closure -O SIMPLE \
 	--js _symbol.js \
 	--js sym.js \

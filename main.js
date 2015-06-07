@@ -10,7 +10,6 @@ var zx = z.mul(x);
 var expr1 = wy.add(wx);
 var expr2 = zy.add(zx);
 
-console.log(Symbol.gradient(expr1,[w]));
 var fun = Symbol.createFunction([expr1,expr2]);
 console.log(fun({
 	'x': Symbol.Vector([2]),
@@ -22,3 +21,4 @@ console.log(fun({
 	'y': Symbol.Vector([3])
 }));
 
+console.log(Symbol.gradient(expr1,[w]));

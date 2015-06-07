@@ -4,19 +4,6 @@ var construct = function(constructor, args) {
 	return new F();
 }
 
-var rowdot = function(row,matrix) {
-	var inputSize  = row.shape[0];
-	var outputSize = matrix.shape[1];
-	var result = new Symbol.Array(outputSize);
-	for (var j=0; j < outputSize; j++) {
-		var sum = 0;
-		for (var i=0; i < inputSize; i++) {
-			sum += row.data[i] * matrix.data[i][j];
-		}
-		result.data[j] = sum;
-	}
-	return result;
-}
 
 var symbolicFunctionBuilder = function(name,fun,grad) {
 	var functionName = name;
@@ -73,6 +60,13 @@ var pairwise = [
 			var X = this.inputs[0];
 			var Y = this.inputs[1];
 			return [ Y.mul(error), X.mul(error) ];
+		},
+		optimisation: function(defaultOp) {
+			return function(X,Y) {
+				if ( X === Var.ONE ) return Y;
+				if ( Y === Var.ONE ) return X;
+				return defaultOp(X,Y);
+			}
 		}
 	},
 	{
@@ -80,9 +74,57 @@ var pairwise = [
 		op: elementWiseOpBuilder(function(x,y) {return x / y})
 	},
 	{
+		name: "outProd",
+		op: function(x,y) {
+			var rowSize = x.shape[0],
+				colSize = y.shape[0];
+			var result = new Symbol.Array(rowSize,colSize);
+
+			for (var i=0; i < rowSize; i++) {
+				for (var j=0; j < colSize; j++) {
+					result.data[i][j] = x.data[i] * y.data[j];
+				}
+			}
+			return result;
+		}
+	},
+	{
+		name: "dot_T",
+		op: function(row,matrix) {
+			var inputSize  = row.shape[0];
+			var outputSize = matrix.shape[0];
+			var result = new Symbol.Array(outputSize);
+			for (var i=0; i < outputSize; i++) {
+				var sum = 0;
+				for (var j=0; j < inputSize; j++) {
+					sum += row.data[j] * matrix.data[i][j];
+				}
+				result.data[i] = sum;
+			}
+			return result;
+		}
+	},
+	{
 		name: "dot",
-		op: rowdot
-	}
+		op: function(row,matrix) {
+			var inputSize  = row.shape[0];
+			var outputSize = matrix.shape[1];
+			var result = new Symbol.Array(outputSize);
+			for (var j=0; j < outputSize; j++) {
+				var sum = 0;
+				for (var i=0; i < inputSize; i++) {
+					sum += row.data[i] * matrix.data[i][j];
+				}
+				result.data[j] = sum;
+			}
+			return result;
+		},
+		grad: function(error) {
+			var x = this.inputs[0],
+				W = this.inputs[1];
+			return [ error.dot_T(W), x.outProd(error) ];
+		}
+	},
 ];
 
 var single = [
@@ -102,7 +144,10 @@ var single = [
 ]
 
 pairwise.forEach(function(desc) {
-	var symfun = symbolicFunctionBuilder(desc.name,desc.op,desc.grad)
+	var symfun = symbolicFunctionBuilder(desc.name,desc.op,desc.grad);
+	if (desc.optimisation) {
+		symfun = desc.optimisation(symfun);
+	}
 	global[desc.name] = symfun;
 	Var.prototype[desc.name] = function(y) { return symfun(this,y) };
 });

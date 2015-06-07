@@ -30,7 +30,7 @@ function topologicalSort(exprs) {
 }
 
 global.gradient = function(expr,wrts) {
-	var nodes = topologicalSort(expr);
+	var nodes = topologicalSort([expr]);
 	var nodeIndex = nodes.index,
 		nodeOrder = nodes.order,
 		nodeDeps  = nodes.dependencies;
@@ -47,9 +47,7 @@ global.gradient = function(expr,wrts) {
 			}
 		}
 	}
-	return wrts.map(function(p) {
-		return deltas[nodeIndex[p]];
-	});
+	return wrts.map(function(p) {return deltas[nodeIndex[p]];});
 }
 
 global.createFunction = function(exprs) {
