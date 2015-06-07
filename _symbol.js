@@ -36,7 +36,7 @@ global.gradient = function(expr,wrts) {
 		nodeDeps  = nodes.dependencies;
 
 	var deltas = new Array(nodeOrder.length);
-	deltas[deltas.length-1] = ONE;
+	deltas[deltas.length-1] = Var.ONE;
 	for (var i=deltas.length-1;i >= 0;i--) {
 		if (nodeOrder[i].grad) {
 			var depDeltas = nodeOrder[i].grad(deltas[i]);
@@ -59,7 +59,6 @@ global.createFunction = function(exprs) {
 		nodeDeps  = nodes.dependencies;
 	var memoize = new Array(nodeOrder.length);
 	var lambdaMemoized = function(j) { return memoize[j] };
-	console.log(nodeIndex);
 	return function(inputs) {
 		var resultMap = {};
 		var resultPtr = 0;
