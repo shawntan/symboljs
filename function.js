@@ -131,6 +131,10 @@ var single = [
 	{
 		name: "sigmoid",
 		op: elementWiseOpBuilder(function(x) {return 1 / ( 1 + Math.exp(-x))}) },
+		grad: function(error) {
+			var sigmoid_p = this.mul(Var.ONE.sub(this));
+			return error.mul(sigmoid_p);
+		}
 	{
 		name: "exp", 
 		op: elementWiseOpBuilder(function(x) {return Math.exp(x)}) },

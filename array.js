@@ -31,3 +31,13 @@ global.Vector = function(arr) {
 	}
 	return result;
 }
+
+global.Matrix = function(arr) {
+	var result = new Symbol.Array(arr.length,arr[0].length);
+	for (var i=0;i<arr.length;i++) {
+		for (var j=0;j<arr[0].length;j++) {
+			result.data[i][j] = arr[i][j];
+		}
+	}
+	return result;
+}
